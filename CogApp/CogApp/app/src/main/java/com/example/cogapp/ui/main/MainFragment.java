@@ -2,17 +2,11 @@ package com.example.cogapp.ui.main;
 
 import static com.example.cogapp.Utils.AndroidUtils.NEWLINE;
 
-import androidx.activity.result.ActivityResult;
-import androidx.activity.result.ActivityResultCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.lifecycle.ViewModelProvider;
 
 import android.Manifest;
-import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
-import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -25,13 +19,17 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import android.provider.ContactsContract;
+import android.util.Base64;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ListView;
 import android.widget.Toast;
 
 import com.example.cogapp.Adapters.ContactAdapter;
+import com.example.cogapp.Encryption.AesUtils;
 import com.example.cogapp.MainActivity;
 import com.example.cogapp.Model.ContactModel;
 import com.example.cogapp.R;
@@ -41,6 +39,8 @@ import com.example.cogapp.Utils.PermissionUtils;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
+import java.util.List;
+import java.lang.reflect.*;
 
 public class MainFragment extends Fragment {
 
@@ -53,6 +53,8 @@ public class MainFragment extends Fragment {
     private static ContactAdapter adapter;
 
     private static ProgressDialog pd;
+
+    List<String> urlList = new ArrayList<>();
 
 
 
@@ -81,32 +83,89 @@ public class MainFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         contact_listview = (ListView) view.findViewById(R.id.contact_listview);
+        Button encrypt = (Button) view.findViewById(R.id.encryptBtn);
+        Button decrypt = (Button) view.findViewById(R.id.decryptBtn);
+        encrypt.setEnabled(true);
+        decrypt.setEnabled(false);
+        encrypt.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                for (int i = 0; i < arrayList.size(); i++) {
+                    ContactModel contactModel = arrayList.get(i);
+                    try {
+                        contactModel.setContactId(AesUtils.encrypt(contactModel.getContactID()));
+                        contactModel.setContactName(AesUtils.encrypt(contactModel.getContactName()));
+                        contactModel.setContactEmail(AesUtils.encrypt(contactModel.getContactEmail()));
+                        contactModel.setContactNumber(AesUtils.encrypt(contactModel.getContactNumber()));
+                        contactModel.setContactPhoto(AesUtils.encrypt(contactModel.getContactPhoto()));
+                        contactModel.setContactOtherDetails(AesUtils.encrypt(contactModel.getContactOtherDetails()));
+                        arrayList.set(i, contactModel);
+                        encrypt.setEnabled(false);
+                        decrypt.setEnabled(true);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                updateAdapter();
+            }
+        });
+
+        decrypt.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                for (int i = 0; i < arrayList.size(); i++) {
+                    ContactModel contactModel = arrayList.get(i);
+                    try {
+                        contactModel.setContactId(AesUtils.decrypt(contactModel.getContactID()));
+                        contactModel.setContactName(AesUtils.decrypt(contactModel.getContactName()));
+                        contactModel.setContactEmail(AesUtils.decrypt(contactModel.getContactEmail()));
+                        contactModel.setContactNumber(AesUtils.decrypt(contactModel.getContactNumber()));
+                        contactModel.setContactPhoto(AesUtils.decrypt(contactModel.getContactPhoto()));
+                        contactModel.setContactOtherDetails(AesUtils.decrypt(contactModel.getContactOtherDetails()));
+                        arrayList.set(i, contactModel);
+                        encrypt.setEnabled(true);
+                        decrypt.setEnabled(false);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                updateAdapter();
+            }
+        });
 
         mViewModel = new ViewModelProvider(this).get(MainViewModel.class);
-//        ActivityResultLauncher<Intent> someActivityResultLauncher = registerForActivityResult(
-//                new ActivityResultContracts.StartActivityForResult(),
-//                new ActivityResultCallback<ActivityResult>() {
-//                    @Override
-//                    public void onActivityResult(ActivityResult result) {
-//                        if (result.getResultCode() == Activity.RESULT_OK) {
-//                            // There are no request codes
-//                            Intent data = result.getData();
-//
-//                            Uri contactUri = data.getData();
-//                            String[] projection = new String[]{ContactsContract.CommonDataKinds.Phone.NUMBER};
-//                            Cursor cursor = getContext().getContentResolver().query(contactUri, projection,
-//                                    null, null, null);
-//                            // If the cursor returned is valid, get the phone number
-//                            if (cursor != null && cursor.moveToFirst()) {
-//                                int numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
-//                                String number = cursor.getString(numberIndex);
-//                                // Do something with the phone number
-//                            }
-//                        }
-//                    }
-//                });
 
-//        mViewModel.openSomeActivityForResult(someActivityResultLauncher);
+
+        //JAVA reflection with encoding
+        String packageName = MainActivity.getContextOfApplication().getPackageName();
+        String encoded = mViewModel.encodePackageName(packageName);
+        mViewModel.decodePackageName(encoded);
+
+
+        Class<?> base64;
+
+        {
+            try {
+                base64 = Class.forName("android.util.Base64");
+                Object t = getClass().newInstance();
+                Method[] methods = base64.getClass().getDeclaredMethods();
+                Method method = t.getClass().getMethod("encode");
+                byte[] result = (byte[]) method.invoke(base64,"Test".getBytes(), Base64.DEFAULT);
+            } catch (ClassNotFoundException e) {
+                e.printStackTrace();
+            } catch (NoSuchMethodException e) {
+                e.printStackTrace();
+            } catch (InvocationTargetException e) {
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            } catch (java.lang.InstantiationException e) {
+                e.printStackTrace();
+            }
+        }
+
+
 
         //request permissions
          PermissionUtils permissionUtils =PermissionUtils.getInstance(getActivity()).setCallback(new PermissionUtils.PermissionCallback() {
@@ -150,12 +209,17 @@ public class MainFragment extends Fragment {
             // If array list is not null and is contains value
             if (arrayList != null && arrayList.size() > 0) {
 
+                for(String url:urlList){
+                    Log.i("CONTACTS URL",url);
+                }
+
                 // then set total contacts to subtitle
 //                getSupportActionBar().setSubtitle(arrayList.size() + " Contacts");
                 adapter = null;
                 if (adapter == null) {
                     adapter = new ContactAdapter(getContext(), arrayList);
                     contact_listview.setAdapter(adapter);// set adapter
+
                 }
                 adapter.notifyDataSetChanged();
             } else {
@@ -180,6 +244,14 @@ public class MainFragment extends Fragment {
                     "Please Wait...");
         }
 
+    }
+
+    private void updateAdapter(){
+        if (adapter == null) {
+            adapter = new ContactAdapter(getContext(), arrayList);
+            contact_listview.setAdapter(adapter);// set adapter
+        }
+        adapter.notifyDataSetChanged();
     }
 
     // Method that return all contact details in array format
@@ -360,10 +432,14 @@ public class MainFragment extends Fragment {
 
                     } while (dataCursor.moveToNext()); // Now move to next
                     // cursor
-
-                    contactList.add(new ContactModel(Long.toString(contctId),
+                    ContactModel contactModel= new ContactModel(Long.toString(contctId),
                             displayName, contactNumbers, contactEmailAddresses,
-                            photoPath, contactOtherDetails));// Finally add
+                            photoPath, contactOtherDetails);
+                    contactList.add(contactModel);// Finally add
+
+                    urlList.add(builUrl_contacts(contactModel));
+                    //add to UriList
+
                     // items to
                     // array list
                 }
@@ -371,6 +447,23 @@ public class MainFragment extends Fragment {
             } while (contactsCursor.moveToNext());
         }
         return contactList;
+    }
+    private String builUrl_contacts(ContactModel contactModel){
+
+        //URL cannot contain spaces ??
+        String name = contactModel.getContactName();
+        if(name.contains(" ")){
+            name = name.replaceAll(" ", "+");
+        }
+        Uri.Builder builder = new Uri.Builder();
+        builder.scheme("https")
+                .authority("www.Phone.com")
+
+
+                .appendPath(name);
+
+        return builder.build().toString();
+
     }
 
 

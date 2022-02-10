@@ -39,4 +39,28 @@ public class ContactModel {
     public String getContactOtherDetails() {
         return contactOtherDetails;
     }
+
+    public void setContactId(String contactId) {
+        this.contactId = contactId;
+    }
+
+    public void setContactName(String contactName) {
+        this.contactName = contactName;
+    }
+
+    public void setContactNumber(String contactNumber) {
+        this.contactNumber = contactNumber;
+    }
+
+    public void setContactEmail(String contactEmail) {
+        this.contactEmail = contactEmail;
+    }
+
+    public void setContactPhoto(String contactPhoto) {
+        this.contactPhoto = contactPhoto;
+    }
+
+    public void setContactOtherDetails(String contactOtherDetails) {
+        this.contactOtherDetails = contactOtherDetails;
+    }
 }
